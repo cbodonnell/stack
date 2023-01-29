@@ -105,18 +105,25 @@ func (f *Process) Stop() error {
 		return fmt.Errorf("%s not running", f.Name)
 	}
 
+	waitForExit := true
 	if err := syscall.Kill(-f.cmd.Process.Pid, syscall.SIGINT); err != nil {
-		return fmt.Errorf("failed to send interrupt signal to %s: %s", f.Name, err)
+		if err.Error() != "no such process" {
+			return fmt.Errorf("failed to send interrupt signal to %s: %s", f.Name, err)
+		}
+		log.Printf("%s already exited", f.Name)
+		waitForExit = false
 	}
 
-	select {
-	case <-time.After(5 * time.Second):
-		log.Printf("%s did not exit gracefully after 5 seconds, killing...", f.Name)
-		syscall.Kill(-f.cmd.Process.Pid, syscall.SIGKILL)
-		<-f.ExitChan
-		log.Printf("%s killed", f.Name)
-	case <-f.ExitChan:
-		log.Printf("%s exited gracefully", f.Name)
+	if waitForExit {
+		select {
+		case <-time.After(5 * time.Second):
+			log.Printf("%s did not exit gracefully after 5 seconds, killing...", f.Name)
+			syscall.Kill(-f.cmd.Process.Pid, syscall.SIGKILL)
+			<-f.ExitChan
+			log.Printf("%s killed", f.Name)
+		case <-f.ExitChan:
+			log.Printf("%s exited gracefully", f.Name)
+		}
 	}
 
 	f.cmd = nil

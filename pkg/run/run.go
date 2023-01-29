@@ -60,7 +60,7 @@ func Run(cfg *config.EnvironmentConfig) error {
 					exitChan <- fmt.Errorf("failed to run %s: %s", proc.Name, err)
 					return
 				}
-				time.Sleep(1 * time.Second)
+				time.Sleep(2 * time.Second)
 			}
 		}(p)
 	}
@@ -68,20 +68,31 @@ func Run(cfg *config.EnvironmentConfig) error {
 	select {
 	case <-interrupt:
 		log.Println("interrupted, stopping processes")
-		done := make(chan struct{})
-		go func() {
-			for _, proc := range procs {
-				proc.Stop()
-			}
-			close(done)
-		}()
-		select {
-		case <-done:
-			return errors.New("interrupted")
-		case <-time.After(5 * time.Second):
-			return errors.New("interrupted, timed out")
+		if err := Stop(procs); err != nil {
+			log.Printf("error stopping processes: %s", err)
 		}
+		return nil
 	case err := <-exitChan:
+		log.Println("process exited, stopping processes")
+		if err := Stop(procs); err != nil {
+			log.Printf("error stopping processes: %s", err)
+		}
 		return fmt.Errorf("error: %s", err)
+	}
+}
+
+func Stop(procs map[string]*process.Process) error {
+	done := make(chan struct{})
+	go func() {
+		for _, proc := range procs {
+			proc.Stop()
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-time.After(5 * time.Second):
+		return errors.New("timed out stopping processes")
 	}
 }
