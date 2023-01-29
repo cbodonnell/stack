@@ -1,0 +1,10 @@
+name: dev
+processes:
+- name: echo
+  command: go
+  args: ["run", "main.go"]
+  workDir: ./examples/echo
+- name: echo-2
+  command: go
+  args: ["run", "main.go", "--port", "8081"]
+  workDir: ./examples/echo-2
